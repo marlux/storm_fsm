@@ -7,7 +7,6 @@ import backtype.storm.topology.base.BaseRichBolt;
 import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Tuple;
 import backtype.storm.tuple.Values;
-import backtype.storm.utils.Utils;
 import streaming_fsm.function.Helper.Enum.Frequent;
 import streaming_fsm.function.Helper.GSpanMapItem;
 import streaming_fsm.api.Embedding;
@@ -27,11 +26,14 @@ import java.util.concurrent.ConcurrentHashMap;
 public class Grower extends BaseRichBolt implements Runnable {
 
     public static final String PHASE = "phase";
+    public static final String THREAD_DONE_STREAM = "done";
 
     OutputCollector outputCollector;
 
-    // Hält lokal die Sequenzen
-    public ConcurrentHashMap<Integer, SearchSpaceItem> Seq = new ConcurrentHashMap<>();
+  /**
+   * concurrent cause of 2 threads
+   */
+  public ConcurrentHashMap<Integer, SearchSpaceItem> Seq = new ConcurrentHashMap<>();
     public ConcurrentHashMap<Pattern, GSpanMapItem> GspanMap = new ConcurrentHashMap<>();
 
     @Override
@@ -42,18 +44,20 @@ public class Grower extends BaseRichBolt implements Runnable {
     @Override
     public void execute(Tuple tuple) {
         switch (tuple.getSourceStreamId()) {
-            case Reader.PHASE_STREAM:
+
+            case Reader.ITEM_DISTRIBUTION_FINISHED_STREAM:
                 // Starte eine Paralelle Berechnung
                 // Es sind nun alle Daten verteilt
                 System.out.println("Es wird der Thread gestartet");
-                Utils.sleep(1000);
                 new Thread(this).start();
                 break;
+
             case Reader.ITEM_STREAM:
                 // Es werden die einzelnen Daten in den Bolt gespeichert
 
-                Integer tupId = tuple.getIntegerByField("seqId");
-                SearchSpaceItem tupSeq = (SearchSpaceItem) tuple.getValueByField("data");
+                Integer tupId = tuple.getIntegerByField(Reader.ITEM_ID_FIELD);
+                SearchSpaceItem tupSeq = (SearchSpaceItem) tuple
+                  .getValueByField(Reader.ITEM_DATA_FIELD);
                 Seq.put(tupId, tupSeq);
 
                 // Zerlege nun die Sequenz in alle Elemnte der Länge 1 und packe sie in die Liste
@@ -128,7 +132,7 @@ public class Grower extends BaseRichBolt implements Runnable {
     public void declareOutputFields(OutputFieldsDeclarer outputFieldsDeclarer) {
         outputFieldsDeclarer.declareStream("element", new Fields("element", "seqId"));
         outputFieldsDeclarer.declareStream(PHASE, new Fields("phase", "size"));
-        outputFieldsDeclarer.declareStream("done", new Fields("done"));
+        outputFieldsDeclarer.declareStream(THREAD_DONE_STREAM, new Fields("done"));
 
     }
 
@@ -175,7 +179,7 @@ public class Grower extends BaseRichBolt implements Runnable {
                     }
 
                     if (!breaker) {
-                        this.outputCollector.emit(Reader.PHASE_STREAM, new Values
+                        this.outputCollector.emit(Reader.ITEM_DISTRIBUTION_FINISHED_STREAM, new Values
                           (seqSize,
                           Seq.size()));
                         seqSize++;

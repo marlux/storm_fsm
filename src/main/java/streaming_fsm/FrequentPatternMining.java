@@ -89,23 +89,23 @@ public class FrequentPatternMining {
      */
     public void compute() {
       // set up Storm topology
-        TopologyBuilder builder = new TopologyBuilder();
+        TopologyBuilder topology = new TopologyBuilder();
 
       // reader spout : 
       // reads source data and distributes items among grower bolts
       Reader reader = new Reader();
       reader.setData(input);
 
-      builder.setSpout(READER, reader);
+      topology
+        .setSpout(READER, reader);
 
       // grower bolts:
-
-      builder
+      topology
           .setBolt(GROWER, new Grower(), this.numberOfGrowerBolts)
           // sent items randomly to growers
           .shuffleGrouping(READER, Reader.ITEM_STREAM)
           // set up grower input streams
-          .allGrouping(READER, Reader.PHASE_STREAM)
+          .allGrouping(READER, Reader.ITEM_DISTRIBUTION_FINISHED_STREAM)
           .allGrouping(AGGREGATOR, Aggregator.INFREQUENT_STREAM)
           .allGrouping(AGGREGATOR, Aggregator.FREQUENT_STREAM);
 
@@ -115,34 +115,39 @@ public class FrequentPatternMining {
         aggregator.set_min_support(min_support);
 
         System.out.println("Support:" + min_support);
-        builder
+        topology
           .setBolt(AGGREGATOR, aggregator, this.numberOfAggregatorInstances)
           // same pattern sent to same aggregator
           .fieldsGrouping(GROWER, "element", new Fields("element"))
           // input stream from grower about phase
           .allGrouping(GROWER, Grower.PHASE);
 
-        // 4
+        // collector
         Collector collector = new Collector();
         ResultHolder er = new ResultHolder();
         collector.setResult(er);
         collector.setNumberOfSplitterInstances(numberOfGrowerBolts);
 
-        builder.setBolt(COLLECTOR, collector).shuffleGrouping(AGGREGATOR, "frequent")
-                .shuffleGrouping(GROWER, "done");
+        topology
+          .setBolt(COLLECTOR, collector)
+          .shuffleGrouping(AGGREGATOR, Aggregator.COLLECT_STREAM)
+          .shuffleGrouping(GROWER, Grower.THREAD_DONE_STREAM);
 
         // https://issues.apache.org/jira/browse/FLINK-2836
         // zyklische Graphen sind in der Kompabilität nicht möglich
+      // TODO custer and conf initialization in test
         LocalCluster cluster = new LocalCluster();
         Config conf = new Config();
         conf.put(Config.TOPOLOGY_DEBUG, false);
 
+      // create topology on cluster
         try {
-            cluster.submitTopology("Async Sequence Computioner", conf, builder.createTopology());
+            cluster.submitTopology("Async Sequence Computioner", conf, topology.createTopology());
         } catch (Exception e) {
             e.printStackTrace();
         }
 
+      // TODO refactoring encapsulation from core algorithm
         while(!er.done && maxExecutionTime > currentExecutionTime) {
             Utils.sleep(loopExecutionTime);
             currentExecutionTime += loopExecutionTime;
