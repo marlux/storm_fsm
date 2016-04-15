@@ -10,35 +10,43 @@ import streaming_fsm.api.Pattern;
 
 import java.util.Map;
 
-/**
- * Created by marlux on 06.01.16.
- */
 public class Collector extends BaseRichBolt {
     OutputCollector outputCollector;
 
-    static ResultHolder result;
-    private Integer counter = 0;
-    private Integer numberOfSplittersInstances = 0;
+  /**
+   * TODO: Why static?
+   */
+  static ResultHolder result;
+    private Integer numberOfFinishedGrowers = 0;
+    private Integer numberOfGrowers = 0;
 
     @Override
-    public void prepare(Map map, TopologyContext topologyContext, OutputCollector outputCollector) {
+    public void prepare(Map map, TopologyContext topologyContext,
+      OutputCollector outputCollector) {
         this.outputCollector = outputCollector;
     }
 
     @Override
     public void execute(Tuple tuple) {
 
+        boolean processedTuple = false;
+
         switch (tuple.getSourceStreamId()) {
-            case "done":
-                counter++;
-                if (counter >= this.numberOfSplittersInstances) ;
+            case Grower.THREAD_DONE_STREAM:
+                numberOfFinishedGrowers++;
+                if (numberOfFinishedGrowers >= this.numberOfGrowers) ;
                 result.done = true;
+                processedTuple = true;
                 break;
-            case "frequent":
+            case Aggregator.COLLECT_STREAM:
                 Pattern freqSeq = (Pattern) tuple.getValueByField("seq");
                 result.add(freqSeq);
-                outputCollector.ack(tuple);
+                processedTuple = true;
                 break;
+        }
+
+        if(processedTuple) {
+            outputCollector.ack(tuple);
         }
     }
 
@@ -48,11 +56,11 @@ public class Collector extends BaseRichBolt {
     }
 
     public void setResult(ResultHolder result) {
-        this.result=result;
+        this.result = result;
     }
 
     public void setNumberOfSplitterInstances(Integer number) {
-        this.numberOfSplittersInstances = number;
+        this.numberOfGrowers = number;
     }
 
 }

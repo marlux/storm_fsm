@@ -12,6 +12,8 @@ import java.util.ArrayList;
 public class ResultHolder implements Serializable {
 
     ArrayList<Pattern> result;
+
+    // TODO no public fields!!!
     public boolean done = false;
 
     public ResultHolder() {
