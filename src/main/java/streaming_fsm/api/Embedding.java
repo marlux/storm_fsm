@@ -1,4 +1,4 @@
-package streaming_fsm.interfaces;
+package streaming_fsm.api;
 
 /**
  * Created by thomasd on 13.04.16.

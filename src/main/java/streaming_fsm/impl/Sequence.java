@@ -1,10 +1,10 @@
-package streaming_fsm.InterfaceImplementations;
+package streaming_fsm.impl;
 
 import org.apache.commons.lang3.ArrayUtils;
 
-import streaming_fsm.interfaces.Embedding;
-import streaming_fsm.interfaces.Pattern;
-import streaming_fsm.interfaces.SearchSpaceItem;
+import streaming_fsm.api.Embedding;
+import streaming_fsm.api.Pattern;
+import streaming_fsm.api.SearchSpaceItem;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -28,7 +28,7 @@ public class Sequence extends SearchSpaceItem {
     @Override
     public Pattern genPattern(int i, int size) {
         if (seq.length >= i + size) {
-            return new SubSequence((new ArrayList<Integer>(Arrays.asList(seq)).subList(i, i + size)).toArray(new Integer[size]));
+            return new IntArrayPattern((new ArrayList<Integer>(Arrays.asList(seq)).subList(i, i + size)).toArray(new Integer[size]));
         }
         return null;
     }
@@ -41,7 +41,7 @@ public class Sequence extends SearchSpaceItem {
 
         for (int i = 0; i < seq.length - l + 1; i++) {
             Integer[] subarray = Arrays.copyOfRange(seq, i, i + l);
-            if (ArrayUtils.isEquals(subarray, ((SubSequence) P).seq)) {
+            if (ArrayUtils.isEquals(subarray, ((IntArrayPattern) P).seq)) {
                 SequenceEmbedding se = new SequenceEmbedding();
                 se.pos = i;
                 ret.add(se);

@@ -1,6 +1,6 @@
-package streaming_fsm.InterfaceImplementations;
+package streaming_fsm.impl;
 
-import streaming_fsm.interfaces.Embedding;
+import streaming_fsm.api.Embedding;
 
 /**
  * Created by marlux on 13.04.16.

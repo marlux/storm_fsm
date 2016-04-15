@@ -1,6 +1,6 @@
 package streaming_fsm.function.Helper;
 
-import streaming_fsm.interfaces.Pattern;
+import streaming_fsm.api.Pattern;
 
 import java.io.Serializable;
 import java.util.ArrayList;

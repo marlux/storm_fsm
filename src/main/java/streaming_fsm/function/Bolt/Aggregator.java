@@ -8,7 +8,7 @@ import backtype.storm.topology.base.BaseRichBolt;
 import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Tuple;
 import backtype.storm.tuple.Values;
-import streaming_fsm.interfaces.Pattern;
+import streaming_fsm.api.Pattern;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -17,8 +17,11 @@ import java.util.Map;
 /**
  * Created by marlux on 06.01.16.
  */
-public class FreqAggSeqBolt extends BaseRichBolt {
+public class Aggregator extends BaseRichBolt {
 
+    public static final String COLLECT_STREAM = "frequent";
+    public static final String FREQUENT_STREAM = "frequent2";
+    public static final String INFREQUENT_STREAM = "infrequent";
     float min_support;
     Integer number_of_elements;
     Map<Pattern, ArrayList<Integer>> seqCounter = new HashMap<>();
@@ -66,15 +69,15 @@ public class FreqAggSeqBolt extends BaseRichBolt {
                 ArrayList<Integer> current = new ArrayList<>(seqCounter.get(Subseq));
 
                 if (((float) current.size()) / number_of_elements >= min_support) {
-                    outputCollector.emit("frequent", new Values(Subseq));
-                    outputCollector.emit("frequent2", new Values(Subseq));
+                    outputCollector.emit(COLLECT_STREAM, new Values(Subseq));
+                    outputCollector.emit(FREQUENT_STREAM, new Values(Subseq));
                 } else {
                     if (phasesDone.containsKey(Subseq.size())) {
 
                         float freqpos = ((float) current.size() + (number_of_elements - phasesDone.get(Subseq.size())));
                         // Ist der branch infrequent?
                         if ((freqpos / number_of_elements) < min_support) {
-                            outputCollector.emit("infrequent", new Values(Subseq));
+                            outputCollector.emit(INFREQUENT_STREAM, new Values(Subseq));
                         }
                     }
                 }
@@ -87,9 +90,9 @@ public class FreqAggSeqBolt extends BaseRichBolt {
 
     @Override
     public void declareOutputFields(OutputFieldsDeclarer outputFieldsDeclarer) {
-        outputFieldsDeclarer.declareStream("frequent", new Fields("seq"));
-        outputFieldsDeclarer.declareStream("frequent2", new Fields("seq"));
-        outputFieldsDeclarer.declareStream("infrequent", new Fields("seq"));
+        outputFieldsDeclarer.declareStream(COLLECT_STREAM, new Fields("seq"));
+        outputFieldsDeclarer.declareStream(FREQUENT_STREAM, new Fields("seq"));
+        outputFieldsDeclarer.declareStream(INFREQUENT_STREAM, new Fields("seq"));
     }
 
     public void set_min_support(float support) {

@@ -6,14 +6,14 @@ import backtype.storm.topology.OutputFieldsDeclarer;
 import backtype.storm.topology.base.BaseRichBolt;
 import backtype.storm.tuple.Tuple;
 import streaming_fsm.function.Helper.ResultHolder;
-import streaming_fsm.interfaces.Pattern;
+import streaming_fsm.api.Pattern;
 
 import java.util.Map;
 
 /**
  * Created by marlux on 06.01.16.
  */
-public class FreqSeqBolt extends BaseRichBolt {
+public class Collector extends BaseRichBolt {
     OutputCollector outputCollector;
 
     static ResultHolder result;

@@ -1,8 +1,8 @@
 package streaming_fsm.function.Helper;
 
 import streaming_fsm.function.Helper.Enum.Frequent;
-import streaming_fsm.interfaces.Embedding;
-import streaming_fsm.interfaces.Pattern;
+import streaming_fsm.api.Embedding;
+import streaming_fsm.api.Pattern;
 
 import java.util.ArrayList;
 import java.util.HashMap;

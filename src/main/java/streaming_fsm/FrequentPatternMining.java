@@ -9,28 +9,37 @@ import backtype.storm.tuple.Fields;
 import backtype.storm.utils.Utils;
 
 
-import streaming_fsm.function.Bolt.FreqSeqBolt;
-import streaming_fsm.function.Bolt.FreqAggSeqBolt;
-import streaming_fsm.function.Bolt.FreqSplitDataBolt;
+import streaming_fsm.function.Bolt.Collector;
+import streaming_fsm.function.Bolt.Aggregator;
+import streaming_fsm.function.Bolt.Grower;
 import streaming_fsm.function.Helper.ResultHolder;
-import streaming_fsm.function.Spout.FreqListDataSpout;
-import streaming_fsm.interfaces.Pattern;
-import streaming_fsm.interfaces.SearchSpaceItem;
+import streaming_fsm.function.Spout.Reader;
+import streaming_fsm.api.Pattern;
+import streaming_fsm.api.SearchSpaceItem;
 
 
 /**
- * Created by marlux on 06.01.16.
+ * Algorithm core
  */
-public class SeqStreamer {
+public class FrequentPatternMining {
 
-    ArrayList<Pattern> result = new ArrayList<>();
+  public static final String READER = "R";
+  public static final String GROWER = "G";
+  public static final String AGGREGATOR = "A";
+  public static final String COLLECTOR = "4";
+
+  ArrayList<Pattern> result = new ArrayList<>();
     ArrayList<SearchSpaceItem> input = new ArrayList<>();
 
-    Integer maxExecutionTime = 10000;
+  /**
+   * maximum lifetime of local storm cluster in milliseconds
+   */
+  Integer maxExecutionTime = 10000;
     Integer loopExecutionTime = 1000;
     Integer currentExecutionTime = 0;
 
-    Integer numberOfSplitterInstances = 3;
+  // number of grower bolts
+    Integer numberOfGrowerBolts = 3;
     Integer numberOfAggregatorInstances = 3;
 
     float min_support = 0;
@@ -43,8 +52,8 @@ public class SeqStreamer {
         this.maxExecutionTime = maxExecutionTime;
     }
 
-    public void setNumberOfSplitterInstances(Integer numberOfSplitterInstances) {
-        this.numberOfSplitterInstances = numberOfSplitterInstances;
+    public void setNumberOfGrowerBolts(Integer numberOfGrowerBolts) {
+        this.numberOfGrowerBolts = numberOfGrowerBolts;
     }
 
     /**
@@ -76,42 +85,51 @@ public class SeqStreamer {
 
 
     /**
-     * Berechnung
+     * triggers mining process
      */
     public void compute() {
+      // set up Storm topology
         TopologyBuilder builder = new TopologyBuilder();
 
-        // 1
-        FreqListDataSpout freqListDataSpout = new FreqListDataSpout();
-        freqListDataSpout.setData(input);
+      // reader spout : 
+      // reads source data and distributes items among grower bolts
+      Reader reader = new Reader();
+      reader.setData(input);
 
-        builder.setSpout("1", freqListDataSpout);
+      builder.setSpout(READER, reader);
 
-        // 2
-        builder.setBolt("2", new FreqSplitDataBolt(), this.numberOfSplitterInstances)
-                .shuffleGrouping("1", "splittedData")
-                .allGrouping("1", "phase")
-                .allGrouping("3", "infrequent")
-                .allGrouping("3", "frequent2");
+      // grower bolts:
 
-        // 3
-        FreqAggSeqBolt freqAggSeqBolt = new FreqAggSeqBolt();
-        freqAggSeqBolt.setNumberOfElements(input.size());
-        freqAggSeqBolt.set_min_support(min_support);
+      builder
+          .setBolt(GROWER, new Grower(), this.numberOfGrowerBolts)
+          // sent items randomly to growers
+          .shuffleGrouping(READER, Reader.ITEM_STREAM)
+          // set up grower input streams
+          .allGrouping(READER, Reader.PHASE_STREAM)
+          .allGrouping(AGGREGATOR, Aggregator.INFREQUENT_STREAM)
+          .allGrouping(AGGREGATOR, Aggregator.FREQUENT_STREAM);
+
+        // aggregators
+        Aggregator aggregator = new Aggregator();
+        aggregator.setNumberOfElements(input.size());
+        aggregator.set_min_support(min_support);
 
         System.out.println("Support:" + min_support);
-        builder.setBolt("3", freqAggSeqBolt, this.numberOfAggregatorInstances)
-                .fieldsGrouping("2", "element", new Fields("element"))
-                .allGrouping("2", "phase");
+        builder
+          .setBolt(AGGREGATOR, aggregator, this.numberOfAggregatorInstances)
+          // same pattern sent to same aggregator
+          .fieldsGrouping(GROWER, "element", new Fields("element"))
+          // input stream from grower about phase
+          .allGrouping(GROWER, Grower.PHASE);
 
         // 4
-        FreqSeqBolt freqSeqBolt = new FreqSeqBolt();
+        Collector collector = new Collector();
         ResultHolder er = new ResultHolder();
-        freqSeqBolt.setResult(er);
-        freqSeqBolt.setNumberOfSplitterInstances(numberOfSplitterInstances);
+        collector.setResult(er);
+        collector.setNumberOfSplitterInstances(numberOfGrowerBolts);
 
-        builder.setBolt("4", freqSeqBolt).shuffleGrouping("3", "frequent")
-                .shuffleGrouping("2", "done");
+        builder.setBolt(COLLECTOR, collector).shuffleGrouping(AGGREGATOR, "frequent")
+                .shuffleGrouping(GROWER, "done");
 
         // https://issues.apache.org/jira/browse/FLINK-2836
         // zyklische Graphen sind in der Kompabilität nicht möglich

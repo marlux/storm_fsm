@@ -7,7 +7,7 @@ import backtype.storm.topology.base.BaseRichSpout;
 import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Values;
 import backtype.storm.utils.Utils;
-import streaming_fsm.interfaces.SearchSpaceItem;
+import streaming_fsm.api.SearchSpaceItem;
 
 import java.util.ArrayList;
 
@@ -17,7 +17,10 @@ import java.util.Map;
 /**
  * Created by marlux on 06.01.16.
  */
-public class FreqListDataSpout extends BaseRichSpout {
+public class Reader extends BaseRichSpout {
+
+    public static final String ITEM_STREAM = "reportStream";
+    public static final String PHASE_STREAM = "phase";
 
     List<SearchSpaceItem> data = new ArrayList<>();
     SpoutOutputCollector spoutOutputCollector;
@@ -27,10 +30,11 @@ public class FreqListDataSpout extends BaseRichSpout {
     public void declareOutputFields(OutputFieldsDeclarer outputFieldsDeclarer) {
 
         // Sendet die Daten
-        outputFieldsDeclarer.declareStream("splittedData", new Fields("data", "seqId"));
+        outputFieldsDeclarer.declareStream(
+          ITEM_STREAM, new Fields("data", "seqId"));
 
         // Sagt das alle Graphen gesendet wurden
-        outputFieldsDeclarer.declareStream("phase", new Fields("done"));
+        outputFieldsDeclarer.declareStream(PHASE_STREAM, new Fields("done"));
     }
 
     @Override
@@ -48,9 +52,9 @@ public class FreqListDataSpout extends BaseRichSpout {
         if (test) {
             for (int i = 0; i < data.size(); i++) {
                 spoutOutputCollector
-                        .emit("splittedData", new Values(data.get(i), i));
+                        .emit(ITEM_STREAM, new Values(data.get(i), i));
             }
-            spoutOutputCollector.emit("phase", new Values("1"));
+            spoutOutputCollector.emit(PHASE_STREAM, new Values("1"));
             test = false;
         }
 

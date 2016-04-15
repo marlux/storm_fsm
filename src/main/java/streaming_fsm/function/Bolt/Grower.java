@@ -10,9 +10,10 @@ import backtype.storm.tuple.Values;
 import backtype.storm.utils.Utils;
 import streaming_fsm.function.Helper.Enum.Frequent;
 import streaming_fsm.function.Helper.GSpanMapItem;
-import streaming_fsm.interfaces.Embedding;
-import streaming_fsm.interfaces.Pattern;
-import streaming_fsm.interfaces.SearchSpaceItem;
+import streaming_fsm.api.Embedding;
+import streaming_fsm.api.Pattern;
+import streaming_fsm.api.SearchSpaceItem;
+import streaming_fsm.function.Spout.Reader;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -23,7 +24,9 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Created by marlux on 06.01.16.
  */
-public class FreqSplitDataBolt extends BaseRichBolt implements Runnable {
+public class Grower extends BaseRichBolt implements Runnable {
+
+    public static final String PHASE = "phase";
 
     OutputCollector outputCollector;
 
@@ -39,14 +42,14 @@ public class FreqSplitDataBolt extends BaseRichBolt implements Runnable {
     @Override
     public void execute(Tuple tuple) {
         switch (tuple.getSourceStreamId()) {
-            case "phase":
+            case Reader.PHASE_STREAM:
                 // Starte eine Paralelle Berechnung
                 // Es sind nun alle Daten verteilt
                 System.out.println("Es wird der Thread gestartet");
                 Utils.sleep(1000);
                 new Thread(this).start();
                 break;
-            case "splittedData":
+            case Reader.ITEM_STREAM:
                 // Es werden die einzelnen Daten in den Bolt gespeichert
 
                 Integer tupId = tuple.getIntegerByField("seqId");
@@ -78,7 +81,7 @@ public class FreqSplitDataBolt extends BaseRichBolt implements Runnable {
 
                 break;
 
-            case "infrequent":
+            case Aggregator.INFREQUENT_STREAM:
                 // Die Sequenz ist nicht frequent und wird aus der Datenbasis entfernt
 
                 Stack<Pattern> p_infreq = new Stack<>();
@@ -101,7 +104,7 @@ public class FreqSplitDataBolt extends BaseRichBolt implements Runnable {
 
                 break;
 
-            case "frequent2":
+            case Aggregator.FREQUENT_STREAM:
                 // Die Sequenz ist frequent und wird vorzeitig gegrowt
 
                 Pattern p = (Pattern) tuple.getValueByField("seq");
@@ -124,7 +127,7 @@ public class FreqSplitDataBolt extends BaseRichBolt implements Runnable {
     @Override
     public void declareOutputFields(OutputFieldsDeclarer outputFieldsDeclarer) {
         outputFieldsDeclarer.declareStream("element", new Fields("element", "seqId"));
-        outputFieldsDeclarer.declareStream("phase", new Fields("phase", "size"));
+        outputFieldsDeclarer.declareStream(PHASE, new Fields("phase", "size"));
         outputFieldsDeclarer.declareStream("done", new Fields("done"));
 
     }
@@ -172,7 +175,9 @@ public class FreqSplitDataBolt extends BaseRichBolt implements Runnable {
                     }
 
                     if (!breaker) {
-                        this.outputCollector.emit("phase", new Values(seqSize, Seq.size()));
+                        this.outputCollector.emit(Reader.PHASE_STREAM, new Values
+                          (seqSize,
+                          Seq.size()));
                         seqSize++;
                     }
 

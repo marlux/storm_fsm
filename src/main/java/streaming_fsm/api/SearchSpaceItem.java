@@ -1,4 +1,4 @@
-package streaming_fsm.interfaces;
+package streaming_fsm.api;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -14,6 +14,7 @@ public abstract class SearchSpaceItem implements Serializable {
 
     public abstract ArrayList<Embedding> getEmbedding(Pattern P);
 
-    public abstract ArrayList<Pattern> grow(Pattern p, ArrayList<Embedding> embeddings);
+    public abstract ArrayList<Pattern> grow(
+      Pattern p, ArrayList<Embedding> embeddings);
 
 }
