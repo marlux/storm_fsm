@@ -39,7 +39,8 @@ public class Collector extends BaseRichBolt {
                 processedTuple = true;
                 break;
             case Aggregator.COLLECT_STREAM:
-                Pattern freqSeq = (Pattern) tuple.getValueByField("seq");
+                Pattern freqSeq = (Pattern) tuple.getValueByField(Aggregator
+                  .PATTERN_FIELD);
                 result.add(freqSeq);
                 processedTuple = true;
                 break;

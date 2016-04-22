@@ -30,14 +30,17 @@ public class Grower extends BaseRichBolt implements Runnable {
 
     OutputCollector outputCollector;
 
-  /**
-   * concurrent cause of 2 threads
-   */
-  public ConcurrentHashMap<Integer, SearchSpaceItem> Seq = new ConcurrentHashMap<>();
-    public ConcurrentHashMap<Pattern, GSpanMapItem> GspanMap = new ConcurrentHashMap<>();
+    /**
+    * concurrent cause of 2 threads
+    */
+    public ConcurrentHashMap<Integer, SearchSpaceItem> seq =
+      new ConcurrentHashMap<>();
+    public ConcurrentHashMap<Pattern, GSpanMapItem> gSpanMap =
+      new ConcurrentHashMap<>();
 
     @Override
-    public void prepare(Map map, TopologyContext topologyContext, OutputCollector outputCollector) {
+    public void prepare(Map map, TopologyContext topologyContext,
+      OutputCollector outputCollector) {
         this.outputCollector = outputCollector;
     }
 
@@ -58,7 +61,7 @@ public class Grower extends BaseRichBolt implements Runnable {
                 Integer tupId = tuple.getIntegerByField(Reader.ITEM_ID_FIELD);
                 SearchSpaceItem tupSeq = (SearchSpaceItem) tuple
                   .getValueByField(Reader.ITEM_DATA_FIELD);
-                Seq.put(tupId, tupSeq);
+                seq.put(tupId, tupSeq);
 
                 // Zerlege nun die Sequenz in alle Elemnte der Länge 1 und packe sie in die Liste
 
@@ -67,19 +70,19 @@ public class Grower extends BaseRichBolt implements Runnable {
 
                     // Prüfe ob Pattern schon gefunden
 
-                    if (GspanMap.containsKey(pattern)) {
-                        GSpanMapItem gi = new GSpanMapItem(GspanMap.get(pattern));
+                    if (gSpanMap.containsKey(pattern)) {
+                        GSpanMapItem gi = new GSpanMapItem(gSpanMap.get(pattern));
 
                         if (!gi.embeddings.containsKey(tupId)) {
                             gi.embeddings.put(tupId, tupSeq.getEmbedding(pattern));
 
-                            GspanMap.remove(pattern);
-                            GspanMap.put(pattern, gi);
+                            gSpanMap.remove(pattern);
+                            gSpanMap.put(pattern, gi);
                         }
                     } else {
                         GSpanMapItem gi = new GSpanMapItem();
                         gi.embeddings.put(tupId, tupSeq.getEmbedding(pattern));
-                        GspanMap.put(pattern, gi);
+                        gSpanMap.put(pattern, gi);
                     }
                 }
 
@@ -90,19 +93,19 @@ public class Grower extends BaseRichBolt implements Runnable {
 
                 Stack<Pattern> p_infreq = new Stack<>();
 
-                p_infreq.push((Pattern) tuple.getValueByField("seq"));
+                p_infreq.push((Pattern) tuple.getValueByField(Aggregator.PATTERN_FIELD));
 
                 while (p_infreq.size() > 0) {
                     Pattern current_p = p_infreq.pop();
-                    GSpanMapItem gsmi = GspanMap.get(current_p);
+                    GSpanMapItem gsmi = gSpanMap.get(current_p);
                     if (gsmi != null) {
                         gsmi.done = true;
                         gsmi.frequent = Frequent.NO;
-                        GspanMap.put(current_p,gsmi);
+                        gSpanMap.put(current_p,gsmi);
                         for (Pattern child : gsmi.children) {
                             p_infreq.push(child);
                         }
-                        GspanMap.remove(current_p);
+                        gSpanMap.remove(current_p);
                     }
                 }
 
@@ -111,8 +114,10 @@ public class Grower extends BaseRichBolt implements Runnable {
             case Aggregator.FREQUENT_STREAM:
                 // Die Sequenz ist frequent und wird vorzeitig gegrowt
 
-                Pattern p = (Pattern) tuple.getValueByField("seq");
-                GSpanMapItem gsmi = GspanMap.get(p);
+                Pattern p = (Pattern) tuple
+                  .getValueByField(Aggregator.PATTERN_FIELD);
+
+                GSpanMapItem gsmi = gSpanMap.get(p);
                 if (gsmi == null) break;
 
                 if (!gsmi.done && gsmi.frequent == Frequent.UNKNOWN) {
@@ -121,7 +126,7 @@ public class Grower extends BaseRichBolt implements Runnable {
 
                 gsmi.done = true;
                 gsmi.frequent = Frequent.YES;
-                GspanMap.put(p, gsmi);
+                gSpanMap.put(p, gsmi);
                 break;
         }
         outputCollector.ack(tuple);
@@ -144,27 +149,28 @@ public class Grower extends BaseRichBolt implements Runnable {
 
         int seqSize = 1;
 
-        boolean somethingSendet = true;
+        boolean somethingSent = true;
 
-        while (somethingSendet) {
-            somethingSendet = false;
+        while (somethingSent) {
+            somethingSent = false;
 
-            Iterator it = GspanMap.entrySet().iterator();
+            Iterator<Map.Entry<Pattern, GSpanMapItem>> it = gSpanMap
+              .entrySet().iterator();
 
             while (it.hasNext()) {
-                Map.Entry pair = (Map.Entry) it.next();
-                Pattern p = (Pattern) pair.getKey();
-                GSpanMapItem gsmi = (GSpanMapItem) pair.getValue();
+                Map.Entry<Pattern, GSpanMapItem> pair = it.next();
+                Pattern p = pair.getKey();
+                GSpanMapItem gsmi = pair.getValue();
 
                 if (!gsmi.done && gsmi.frequent == Frequent.UNKNOWN) {
 
-                    somethingSendet = computeCurrentGsmi(p, gsmi, somethingSendet);
+                    somethingSent = computeCurrentGsmi(p, gsmi, somethingSent);
 
                     gsmi.done = true;
-                    GspanMap.put(p, gsmi);
+                    gSpanMap.put(p, gsmi);
 
                     // Prüfe hier ob noch etwas in der aktuellen Phase ist
-                    Iterator checker = GspanMap.entrySet().iterator();
+                    Iterator checker = gSpanMap.entrySet().iterator();
 
                     boolean breaker = false;
                     while (checker.hasNext()) {
@@ -181,7 +187,7 @@ public class Grower extends BaseRichBolt implements Runnable {
                     if (!breaker) {
                         this.outputCollector.emit(Reader.ITEM_DISTRIBUTION_FINISHED_STREAM, new Values
                           (seqSize,
-                          Seq.size()));
+                          seq.size()));
                         seqSize++;
                     }
 
@@ -202,7 +208,7 @@ public class Grower extends BaseRichBolt implements Runnable {
             this.outputCollector.emit("element", new Values(p, key));
             somethingSendet = true;
 
-            SearchSpaceItem ssi = Seq.get(key);
+            SearchSpaceItem ssi = seq.get(key);
             ArrayList<Pattern> newPs = ssi.grow(p, value);
 
             addnewPattern(newPs, key, p);
@@ -219,15 +225,15 @@ public class Grower extends BaseRichBolt implements Runnable {
     public void addnewPattern(ArrayList<Pattern> newPs, Integer key, Pattern parent) {
         for (Pattern np : newPs) {
             GSpanMapItem gi;
-            if (GspanMap.containsKey(np)) {
-                gi = new GSpanMapItem(GspanMap.get(np));
+            if (gSpanMap.containsKey(np)) {
+                gi = new GSpanMapItem(gSpanMap.get(np));
             } else {
                 gi = new GSpanMapItem();
             }
 
             gi.parent = parent;
-            gi.embeddings.put(key, Seq.get(key).getEmbedding(np));
-            GspanMap.put(np, gi);
+            gi.embeddings.put(key, seq.get(key).getEmbedding(np));
+            gSpanMap.put(np, gi);
         }
     }
 }

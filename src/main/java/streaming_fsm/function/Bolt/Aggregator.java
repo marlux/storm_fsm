@@ -22,9 +22,16 @@ public class Aggregator extends BaseRichBolt {
     public static final String COLLECT_STREAM = "frequent";
     public static final String FREQUENT_STREAM = "frequent2";
     public static final String INFREQUENT_STREAM = "infrequent";
+    public static final String PATTERN_FIELD = "seq";
     float min_support;
     Integer number_of_elements;
-    Map<Pattern, ArrayList<Integer>> seqCounter = new HashMap<>();
+  /**
+   * pattern, supporting items
+   */
+  Map<Pattern, ArrayList<Integer>> seqCounter = new HashMap<>();
+    /**
+     * pattern size, finished item count
+     */
     Map<Integer, Integer> phasesDone = new HashMap<>();
     OutputCollector outputCollector;
 
@@ -90,9 +97,9 @@ public class Aggregator extends BaseRichBolt {
 
     @Override
     public void declareOutputFields(OutputFieldsDeclarer outputFieldsDeclarer) {
-        outputFieldsDeclarer.declareStream(COLLECT_STREAM, new Fields("seq"));
-        outputFieldsDeclarer.declareStream(FREQUENT_STREAM, new Fields("seq"));
-        outputFieldsDeclarer.declareStream(INFREQUENT_STREAM, new Fields("seq"));
+        outputFieldsDeclarer.declareStream(COLLECT_STREAM, new Fields(PATTERN_FIELD));
+        outputFieldsDeclarer.declareStream(FREQUENT_STREAM, new Fields(PATTERN_FIELD));
+        outputFieldsDeclarer.declareStream(INFREQUENT_STREAM, new Fields(PATTERN_FIELD));
     }
 
     public void set_min_support(float support) {
