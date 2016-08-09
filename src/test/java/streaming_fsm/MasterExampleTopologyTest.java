@@ -1,6 +1,9 @@
 package streaming_fsm;
 
+import backtype.storm.Config;
+import backtype.storm.topology.TopologyBuilder;
 import org.junit.Test;
+import streaming_fsm.function.Environment.StormStarter;
 import streaming_fsm.impl.Sequence;
 import streaming_fsm.impl.IntArrayPattern;
 import streaming_fsm.api.Pattern;
@@ -43,16 +46,27 @@ public class MasterExampleTopologyTest {
         FrequentPatternMining miner = new FrequentPatternMining();
         miner.setInput(searchSpace);
         miner.setMin_support(0.75f);
-        miner.setMaxExecutionTime(500000);
+
 
         // run algorithm
-        miner.compute();
-        List<Pattern> result = miner.getResult();
+        TopologyBuilder topology = miner.genTopology();
+
+        StormStarter stormStarter = new StormStarter();
+        stormStarter.setMaxExecutionTime(500000);
+
+        stormStarter.setConfig(new Config());
+
+        List<Pattern> result;
+
+        result = stormStarter.StartTopologieOnStorm(miner.getResultHolder(),topology);
+
 
         // validate result
         assertTrue(result.size() == expectedResult.size());
 
         Map<Pattern, Pattern> map = new HashMap<>();
+
+        System.out.println("Validierung der Elemente startet");
 
         for (Pattern expectation : expectedResult) {
             for (Pattern resultLine : result) {
@@ -61,7 +75,6 @@ public class MasterExampleTopologyTest {
                         !map.containsValue(resultLine)) {
                     map.put(expectation, resultLine);
                 }
-
             }
         }
     }

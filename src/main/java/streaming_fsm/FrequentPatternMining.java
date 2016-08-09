@@ -4,6 +4,9 @@ import java.util.*;
 
 import backtype.storm.Config;
 import backtype.storm.LocalCluster;
+import backtype.storm.StormSubmitter;
+import backtype.storm.generated.AlreadyAliveException;
+import backtype.storm.generated.InvalidTopologyException;
 import backtype.storm.topology.TopologyBuilder;
 import backtype.storm.tuple.Fields;
 import backtype.storm.utils.Utils;
@@ -28,15 +31,11 @@ public class FrequentPatternMining {
   public static final String AGGREGATOR = "A";
   public static final String COLLECTOR = "4";
 
-  ArrayList<Pattern> result = new ArrayList<>();
-    ArrayList<SearchSpaceItem> input = new ArrayList<>();
+  ArrayList<SearchSpaceItem> input = new ArrayList<>();
 
-  /**
-   * maximum lifetime of local storm cluster in milliseconds
-   */
-  Integer maxExecutionTime = 10000;
-    Integer loopExecutionTime = 1000;
-    Integer currentExecutionTime = 0;
+  TopologyBuilder topology;
+
+  ResultHolder resultHolder;
 
   // number of grower bolts
     Integer numberOfGrowerBolts = 3;
@@ -48,13 +47,13 @@ public class FrequentPatternMining {
         this.numberOfAggregatorInstances = numberOfAggregatorInstances;
     }
 
-    public void setMaxExecutionTime(Integer maxExecutionTime) {
-        this.maxExecutionTime = maxExecutionTime;
-    }
-
     public void setNumberOfGrowerBolts(Integer numberOfGrowerBolts) {
         this.numberOfGrowerBolts = numberOfGrowerBolts;
     }
+
+  public ResultHolder getResultHolder() {
+    return resultHolder;
+  }
 
     /**
      * Fügt der Klasse den Input hinzu
@@ -63,15 +62,6 @@ public class FrequentPatternMining {
      */
     public void setInput(ArrayList<SearchSpaceItem> input) {
         this.input = input;
-    }
-
-    /**
-     * Gibt das Ergebnis der Berechnung zurück
-     *
-     * @return Ergebnis der Sequenzbestimmung
-     */
-    public List<Pattern> getResult() {
-        return result;
     }
 
     /**
@@ -84,12 +74,15 @@ public class FrequentPatternMining {
     }
 
 
-    /**
+
+
+  /**
      * triggers mining process
      */
-    public void compute() {
+    public TopologyBuilder genTopology() {
+
       // set up Storm topology
-        TopologyBuilder topology = new TopologyBuilder();
+      topology = new TopologyBuilder();
 
       // reader spout : 
       // reads source data and distributes items among grower bolts
@@ -124,8 +117,8 @@ public class FrequentPatternMining {
 
         // collector
         Collector collector = new Collector();
-        ResultHolder er = new ResultHolder();
-        collector.setResult(er);
+        resultHolder = new ResultHolder();
+        collector.setResult(resultHolder);
         collector.setNumberOfSplitterInstances(numberOfGrowerBolts);
 
         topology
@@ -135,34 +128,7 @@ public class FrequentPatternMining {
 
         // https://issues.apache.org/jira/browse/FLINK-2836
         // zyklische Graphen sind in der Kompabilität nicht möglich
-      // TODO custer and conf initialization in test
-        LocalCluster cluster = new LocalCluster();
-        Config conf = new Config();
-        conf.put(Config.TOPOLOGY_DEBUG, false);
 
-      // create topology on cluster
-        try {
-            cluster.submitTopology("Async Sequence Computioner", conf, topology.createTopology());
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-      // TODO refactoring encapsulation from core algorithm
-        while(!er.done && maxExecutionTime > currentExecutionTime) {
-            Utils.sleep(loopExecutionTime);
-            currentExecutionTime += loopExecutionTime;
-        }
-
-        if(currentExecutionTime >= maxExecutionTime && !er.done) {
-            System.out.println("MAX EXECUTION TIME REACHED BUT NOT DONE");
-            cluster.shutdown();
-            System.exit(0);
-        }
-
-        this.result = er.getResult();
-
-        System.out.println("Size: " + this.result.size());
-
-        cluster.shutdown();
+      return topology;
     }
 }
